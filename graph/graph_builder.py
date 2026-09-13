@@ -1,47 +1,31 @@
 import pandas as pd
 import networkx as nx
-import matplotlib.pyplot as plt
+from pathlib import Path
 
-df = pd.read_csv(r"C:\Users\user\OneDrive\Desktop\crimianal network analyser\data\fir_data.csv")
 
-G = nx.MultiDiGraph()
+def build_graph():
 
-for _, row in df.iterrows():
-    person = row["Person"]
-    related_person = row["Related_Person"]
+    data_path = Path(__file__).resolve().parent.parent / "data" / "fir_data.csv"
 
-    G.add_node(person, type="person")
-    G.add_node(related_person, type="person")
+    df = pd.read_csv(data_path)
 
-    G.add_edge(
-        person,
-        related_person,
-        relationship=row["Relationship"],
-        fir_id=row["FIR_ID"],
-        location=row["Location"]
-    )
+    G = nx.MultiDiGraph()
 
-pos = nx.spring_layout(G, seed=42)
+    for _, row in df.iterrows():
 
-nx.draw(
-    G,
-    pos,
-    with_labels=True,
-    node_size=2500,
-    node_color="lightblue",
-    arrows=True
-)
+        person = row["Person"]
+        related_person = row["Related_Person"]
 
-edge_labels = {}
+        G.add_node(person, type="person")
+        G.add_node(related_person, type="person")
 
-for u, v, data in G.edges(data=True):
-    edge_labels[(u, v)] = data["relationship"]
+        G.add_edge(
+            person,
+            related_person,
+            fir_id=row["FIR_ID"],
+            relationship=row["Relationship"],
+            location=row["Location"],
+            phone=row["Phone"]
+        )
 
-nx.draw_networkx_edge_labels(
-    G,
-    pos,
-    edge_labels=edge_labels
-)
-
-plt.title("Criminal Network")
-plt.show()
+    return G

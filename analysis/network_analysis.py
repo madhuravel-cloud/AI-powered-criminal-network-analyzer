@@ -1,29 +1,18 @@
-import pandas as pd
-import networkx as nx
-
-df = pd.read_csv(r"C:\Users\user\OneDrive\Desktop\crimianal network analyser\data\fir_data.csv")
-
-G = nx.MultiDiGraph()
-
-for _, row in df.iterrows():
-    G.add_node(row["Person"], type="person")
-    G.add_node(row["Related_Person"], type="person")
-
-    G.add_edge(
-        row["Person"],
-        row["Related_Person"],
-        fir_id=row["FIR_ID"],
-        relationship=row["Relationship"],
-        location=row["Location"]
-    )
-
-centrality = nx.degree_centrality(G)
-
+from graph.graph_builder import build_graph
+from analysis.centrality import calculate_centrality
+from analysis.cross_fir import find_cross_fir_connections
+G = build_graph()
 print("\nMost Connected People:\n")
 
-for person, score in sorted(
-    centrality.items(),
-    key=lambda x: x[1],
-    reverse=True
-):
+centrality = calculate_centrality(G)
+
+for person, score in centrality:
     print(f"{person}: {score:.3f}")
+
+
+print("\nCross-FIR Connections:\n")
+
+connections = find_cross_fir_connections()
+
+for person, firs in connections.items():
+    print(f"{person}: {', '.join(firs)}")
