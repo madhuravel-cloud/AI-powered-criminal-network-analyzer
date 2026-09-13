@@ -1,0 +1,7 @@
+FIR_ID,Person,Location,Phone,Related_Person,Relationship
+FIR001,Ravi,Kochi,9876543210,Arun,associate
+FIR001,Arun,Kochi,9876543211,Kumar,associate
+FIR002,Kumar,Thrissur,9876543212,Manu,associate
+FIR002,Manu,Thrissur,9876543213,Ravi,associate
+FIR003,Arun,Kochi,9876543211,Joseph,associate
+FIR003,Joseph,Alappuzha,9876543214,Kumar,associate
