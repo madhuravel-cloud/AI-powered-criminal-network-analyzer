@@ -1,6 +1,6 @@
-import pandas as pd
 from pathlib import Path
 import joblib
+
 from ml.feature_engineering import build_features
 
 
@@ -8,13 +8,13 @@ model_path = Path(__file__).resolve().parent / "criminal_network_model.pkl"
 
 model = joblib.load(model_path)
 
-fir_id = input("Enter FIR ID: ").strip()
 
-features = build_features(fir_id)
+def analyze_fir(input_fir):
 
-if features.empty:
-    print("FIR not found.")
-else:
+    features = build_features(input_fir)
+
+    if features.empty:
+        return []
 
     feature_columns = [
         "fir_count",
@@ -34,7 +34,9 @@ else:
 
     probabilities = model.predict_proba(X)[:, 1]
 
-    features["Score"] = (probabilities * 100).round(2)
+    features["Score"] = (
+        probabilities * 100
+    ).round(2)
 
     results = features[
         ["Candidate", "Score"]
@@ -43,5 +45,54 @@ else:
         ascending=False
     )
 
-    print("\nPerson Relevance Scores:\n")
-    print(results.to_string(index=False))
+    return results.to_dict(
+        orient="records"
+    )
+
+
+if __name__ == "__main__":
+
+    input_fir = [
+
+        [
+            "Ravi",
+            "Kochi",
+            "9876543210",
+            "Arun",
+            "associate"
+        ],
+
+        [
+            "Arun",
+            "Kochi",
+            "9876543211",
+            "Kumar",
+            "associate"
+        ],
+
+        [
+            "Kumar",
+            "Kochi",
+            "9876543212",
+            "Manu",
+            "friend"
+        ]
+
+    ]
+
+    results = analyze_fir(input_fir)
+
+    if not results:
+
+        print("No relevant people found.")
+
+    else:
+
+        print("\nPerson Relevance Scores:\n")
+
+        for result in results:
+
+            print(
+                f"{result['Candidate']:<12}"
+                f"{result['Score']}"
+            )

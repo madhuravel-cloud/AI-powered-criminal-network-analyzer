@@ -7,17 +7,27 @@ from analysis.centrality import calculate_centrality
 from analysis.repeated_person import find_repeated_people
 from analysis.phone_analysis import find_repeated_phones
 from analysis.location_analysis import find_repeated_locations
-from analysis.relationship_analysis import find_relationships
 from analysis.communities import find_communities
 
 
-def build_features(input_fir_id):
+def build_features(input_fir):
 
     data_path = Path(__file__).resolve().parent.parent / "data" / "fir_data.csv"
 
     df = pd.read_csv(data_path)
 
-    input_data = df[df["FIR_ID"] == input_fir_id]
+    input_columns = [
+        "Person",
+        "Location",
+        "Phone",
+        "Related_Person",
+        "Relationship"
+    ]
+
+    input_data = pd.DataFrame(
+        input_fir,
+        columns=input_columns
+    )
 
     if input_data.empty:
         return pd.DataFrame()
@@ -28,56 +38,55 @@ def build_features(input_fir_id):
     repeated_people = find_repeated_people()
     repeated_phones = find_repeated_phones()
     repeated_locations = find_repeated_locations()
-    relationships = find_relationships()
     communities = find_communities(G)
 
-    input_people = set(input_data["Person"]) | set(
-        input_data["Related_Person"]
+    input_people = (
+        set(input_data["Person"]) |
+        set(input_data["Related_Person"])
     )
 
-    input_locations = set(input_data["Location"])
-
-    input_phones = set(input_data["Phone"].astype(str))
-
-    other_fir_data = df[df["FIR_ID"] != input_fir_id]
-
-    other_fir_phones = set(
-        other_fir_data["Phone"].astype(str)
+    input_locations = set(
+        input_data["Location"]
     )
 
-    matching_phones = input_phones & other_fir_phones
+    input_phones = set(
+        input_data["Phone"].astype(str)
+    )
 
     candidates = set()
 
-    for _, row in other_fir_data.iterrows():
+    # Shared phone
+    for _, row in df.iterrows():
 
         person = row["Person"]
         related_person = row["Related_Person"]
         phone = str(row["Phone"])
+        location = row["Location"]
 
-        if phone in matching_phones:
+        if phone in input_phones:
             candidates.add(person)
             candidates.add(related_person)
 
-        if row["Location"] in input_locations:
+        # Shared location
+        if location in input_locations:
             candidates.add(person)
             candidates.add(related_person)
 
+    # Graph connections
     for person in input_people:
 
-        if person in G:
+        if person not in G:
+            continue
 
-            candidates.update(
-                neighbour
-                for neighbour in G.neighbors(person)
-                if G.nodes[neighbour].get("type") == "person"
-            )
+        for neighbour in G.neighbors(person):
 
-            candidates.update(
-                predecessor
-                for predecessor in G.predecessors(person)
-                if G.nodes[predecessor].get("type") == "person"
-            )
+            if G.nodes[neighbour].get("type") == "person":
+                candidates.add(neighbour)
+
+        for predecessor in G.predecessors(person):
+
+            if G.nodes[predecessor].get("type") == "person":
+                candidates.add(predecessor)
 
     candidates -= input_people
 
@@ -91,9 +100,14 @@ def build_features(input_fir_id):
         for item in repeated_people
     }
 
-    repeated_locations_map = {
+    repeated_location_map = {
         item["location"]: item
         for item in repeated_locations
+    }
+
+    repeated_phone_map = {
+        item["phone"]: item
+        for item in repeated_phones
     }
 
     community_map = {}
@@ -103,13 +117,15 @@ def build_features(input_fir_id):
         for person in community["people"]:
             community_map[person] = community["community"]
 
+    undirected_graph = nx.Graph(G)
+
     results = []
 
     for candidate in candidates:
 
         candidate_rows = df[
-            (df["Person"] == candidate)
-            | (df["Related_Person"] == candidate)
+            (df["Person"] == candidate) |
+            (df["Related_Person"] == candidate)
         ]
 
         candidate_firs = set(
@@ -130,11 +146,11 @@ def build_features(input_fir_id):
         )
 
         common_phones = (
-            matching_phones &
+            input_phones &
             candidate_phones
         )
 
-        candidate_relationship_count = len(
+        relationship_count = len(
             candidate_rows
         )
 
@@ -142,13 +158,16 @@ def build_features(input_fir_id):
 
         for person in input_people:
 
-            if person not in G or candidate not in G:
+            if person not in undirected_graph:
+                continue
+
+            if candidate not in undirected_graph:
                 continue
 
             try:
 
                 path = nx.shortest_path(
-                    nx.Graph(G),
+                    undirected_graph,
                     source=person,
                     target=candidate
                 )
@@ -158,6 +177,7 @@ def build_features(input_fir_id):
                 )
 
             except nx.NetworkXNoPath:
+
                 continue
 
         shortest_path = (
@@ -174,8 +194,10 @@ def build_features(input_fir_id):
 
                 if (
                     community_map.get(person)
-                    == community_map[candidate]
+                    ==
+                    community_map[candidate]
                 ):
+
                     community_overlap = 1
                     break
 
@@ -184,30 +206,27 @@ def build_features(input_fir_id):
             {}
         )
 
-        repeated_location_count = 0
+        repeated_location_count = sum(
+            1
+            for location in candidate_locations
+            if location in repeated_location_map
+        )
 
-        for location in candidate_locations:
+        repeated_phone_count = sum(
+            1
+            for phone in candidate_phones
+            if phone in repeated_phone_map
+        )
 
-            if location in repeated_locations_map:
-
-                repeated_location_count += 1
-
-        repeated_phone_count = 0
-
-        for phone in candidate_phones:
-
-            phone_data = [
-                item
-                for item in find_repeated_phones()
-                if item["phone"] == phone
-            ]
-
-            if phone_data:
-                repeated_phone_count += 1
+        repeated_fir_count = repeated_people_map.get(
+            candidate,
+            {}
+        ).get(
+            "fir_count",
+            0
+        )
 
         results.append({
-
-            "FIR_ID": input_fir_id,
 
             "Candidate": candidate,
 
@@ -224,7 +243,7 @@ def build_features(input_fir_id):
             ),
 
             "relationship_count":
-                candidate_relationship_count,
+                relationship_count,
 
             "repeated_location_count":
                 repeated_location_count,
@@ -257,45 +276,4 @@ def build_features(input_fir_id):
                 community_overlap
         })
 
-    features = pd.DataFrame(results)
-
-    features = features.sort_values(
-        by="fir_count",
-        ascending=False
-    )
-
-    output_path = (
-        Path(__file__).resolve().parent.parent
-        / "data"
-        / f"features_{input_fir_id}.csv"
-    )
-
-    features.to_csv(
-        output_path,
-        index=False
-    )
-
-    return features
-
-
-if __name__ == "__main__":
-
-    input_fir_id = input(
-        "Enter FIR ID: "
-    ).strip()
-
-    features = build_features(
-        input_fir_id
-    )
-
-    if features.empty:
-
-        print("FIR not found.")
-
-    else:
-
-        print("\nFeature Table:\n")
-
-        print(features.to_string(
-            index=False
-        ))
+    return pd.DataFrame(results)
