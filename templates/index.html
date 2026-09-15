@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Criminal Network Analyzer</title>
+
+</head>
+
+<body>
+
+    <h1>Criminal Network Analyzer</h1>
+
+    <form method="POST">
+
+        <input
+            type="text"
+            name="person"
+            placeholder="Person"
+            required
+        >
+
+        <input
+            type="text"
+            name="location"
+            placeholder="Location"
+            required
+        >
+
+        <input
+            type="text"
+            name="phone"
+            placeholder="Phone"
+            required
+        >
+
+        <input
+            type="text"
+            name="related_person"
+            placeholder="Related Person"
+            required
+        >
+
+        <select name="relationship">
+
+            <option value="associate">Associate</option>
+            <option value="friend">Friend</option>
+            <option value="relative">Relative</option>
+            <option value="colleague">Colleague</option>
+
+        </select>
+
+        <button type="submit">
+            Analyze FIR
+        </button>
+
+    </form>
+
+
+    {% if results %}
+
+        <h2>Person Relevance Scores</h2>
+
+        {% for result in results %}
+
+            <p>
+                <strong>{{ result["Candidate"] }}</strong>
+                — {{ result["Score"] }}/100
+            </p>
+
+        {% endfor %}
+
+    {% endif %}
+
+</body>
+
+</html>
