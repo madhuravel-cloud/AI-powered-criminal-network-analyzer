@@ -7,7 +7,7 @@ import easyocr
 # This ensures the model weights are loaded into the 6GB VRAM only once,
 # no matter how many times your teammates call the function below.
 print("Loading EasyOCR models into VRAM...")
-reader = easyocr.Reader(['en','hi'], gpu=True)
+reader = easyocr.Reader(['en','hi'], gpu=False)
 
 def extract_and_clean_text(image_path):
     """
