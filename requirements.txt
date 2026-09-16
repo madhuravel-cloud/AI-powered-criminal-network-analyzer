@@ -3,3 +3,4 @@ pandas
 networkx
 scikit-learn
 joblib
+spacy
