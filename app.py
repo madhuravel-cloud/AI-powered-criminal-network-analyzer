@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request
 from ml.predict import analyze_fir
-
+from ml.network import build_network_graph, display_network_graph
 app = Flask(__name__)
 
 
