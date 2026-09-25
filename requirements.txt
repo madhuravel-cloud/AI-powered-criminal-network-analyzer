@@ -10,3 +10,4 @@ joblib
 networkx
 torch
 torchvision
+pyvis
