@@ -1657,371 +1657,265 @@ if analyze_button:
         expanded=True
     ) as status:
 
-        st.write(
-            "Initializing document analysis..."
+        st.write("Initializing document analysis...")
+
+        # -----------------------------------------------------
+        # OCR
+        # -----------------------------------------------------
+
+        st.write("Running OCR...")
+
+        fir_text = extract_text_from_image(image)
+
+        # -----------------------------------------------------
+        # NLP
+        # -----------------------------------------------------
+
+        st.write("Extracting entities and relationships...")
+
+        nlp_results = analyze_fir_text(fir_text)
+
+        # Safely read NLP results
+        persons = nlp_results.get("persons", [])
+        locations = nlp_results.get("locations", [])
+        phones = nlp_results.get("phones", [])
+        vehicles = nlp_results.get("vehicles", [])
+        organizations = nlp_results.get("organizations", [])
+        relationships = nlp_results.get("relationships", [])
+
+        st.write("Preparing network intelligence...")
+
+        # -----------------------------------------------------
+        # OCR TEXT
+        # -----------------------------------------------------
+
+        st.divider()
+
+        with st.expander("View OCR Text"):
+
+            st.text_area(
+                "Recognized text",
+                fir_text,
+                height=190,
+                label_visibility="collapsed"
+            )
+
+        # -----------------------------------------------------
+        # EXTRACTED INTELLIGENCE
+        # -----------------------------------------------------
+
+        st.markdown(
+            '<div class="section-title">'
+            'Extracted Intelligence'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        st.write(
-            "Running OCR..."
+        st.markdown(
+            '<div class="section-accent"></div>',
+            unsafe_allow_html=True
         )
 
-        fir_text = extract_text_from_image(
-            image
+        m1, m2, m3, m4, m5 = st.columns(5)
+
+        m1.metric("Persons", len(persons))
+        m2.metric("Locations", len(locations))
+        m3.metric("Phones", len(phones))
+        m4.metric("Vehicles", len(vehicles))
+        m5.metric("Organizations", len(organizations))
+
+        # -----------------------------------------------------
+        # ENTITY DETAILS
+        # -----------------------------------------------------
+
+        with st.expander("View Extracted Entities"):
+
+            left, right = st.columns(2)
+
+            with left:
+
+                st.markdown("**Persons**")
+                st.write(persons if persons else "None")
+
+                st.markdown("**Locations**")
+                st.write(locations if locations else "None")
+
+                st.markdown("**Phone Numbers**")
+                st.write(phones if phones else "None")
+
+            with right:
+
+                st.markdown("**Vehicles**")
+                st.write(vehicles if vehicles else "None")
+
+                st.markdown("**Organizations**")
+                st.write(organizations if organizations else "None")
+
+        # -----------------------------------------------------
+        # RELATIONSHIPS
+        # -----------------------------------------------------
+
+        st.divider()
+
+        st.markdown(
+            '<div class="section-title">'
+            'Extracted Relationships'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        st.write(
-            "Extracting entities and relationships..."
+        st.markdown(
+            '<div class="section-accent"></div>',
+            unsafe_allow_html=True
         )
 
-        nlp_results = analyze_fir_text(
-            fir_text
+        if relationships:
+
+            for relationship in relationships:
+
+                st.info(
+                    f"{relationship.get('person', 'Unknown')} "
+                    f"→ {relationship.get('relationship', 'related to')} → "
+                    f"{relationship.get('related_person', 'Unknown')}"
+                )
+
+        else:
+
+            st.info("No relationships were extracted.")
+
+        # -----------------------------------------------------
+        # NETWORKX GRAPH
+        # -----------------------------------------------------
+
+        st.divider()
+
+        st.markdown(
+            '<div class="section-title">'
+            'Network Intelligence'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        st.write(
-            "Preparing network intelligence..."
+        st.markdown(
+            '<div class="section-accent"></div>',
+            unsafe_allow_html=True
         )
 
-        relationships = nlp_results["relationships"]
+        if relationships:
+
+            graph = build_network_graph(relationships)
+
+            graph_left, graph_right = st.columns(2)
+
+            graph_left.metric(
+                "Network Nodes",
+                graph.number_of_nodes()
+            )
+
+            graph_right.metric(
+                "Network Relationships",
+                graph.number_of_edges()
+            )
+
+            display_network_graph(graph)
+
+        else:
+
+            st.info(
+                "Network visualization requires extracted relationships."
+            )
+
+        # -----------------------------------------------------
+        # ML INPUT
+        # -----------------------------------------------------
 
         input_fir = []
 
-for relationship in relationships:
-
-    input_fir.append([
-        relationship["person"],
-        locations[0] if locations else "",
-        phones[0] if phones else "",
-        relationship["related_person"],
-        relationship["relationship"]
-    ])
-
-
-    # =====================================================
-    # ENTITIES
-    # =====================================================
-
-    persons = nlp_results["persons"]
-    locations = nlp_results["locations"]
-    phones = nlp_results["phones"]
-    vehicles = nlp_results["vehicles"]
-    organizations = nlp_results["organizations"]
-
-
-    # =====================================================
-    # OCR
-    # =====================================================
-
-    st.divider()
-
-    with st.expander(
-        "View OCR Text"
-    ):
-
-        st.text_area(
-            "Recognized text",
-            fir_text,
-            height=190,
-            label_visibility="collapsed"
-        )
-
-
-    # =====================================================
-    # EXTRACTED INTELLIGENCE
-    # =====================================================
-
-    st.markdown(
-        '<div class="section-title">'
-        'Extracted Intelligence'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="section-accent"></div>',
-        unsafe_allow_html=True
-    )
-
-
-    m1, m2, m3, m4, m5 = st.columns(5)
-
-
-    m1.metric(
-        "Persons",
-        len(persons)
-    )
-
-    m2.metric(
-        "Locations",
-        len(locations)
-    )
-
-    m3.metric(
-        "Phones",
-        len(phones)
-    )
-
-    m4.metric(
-        "Vehicles",
-        len(vehicles)
-    )
-
-    m5.metric(
-        "Organizations",
-        len(organizations)
-    )
-
-
-    # =====================================================
-    # ENTITY DETAILS
-    # =====================================================
-
-    with st.expander(
-        "View Extracted Entities"
-    ):
-
-        left, right = st.columns(2)
-
-        with left:
-
-            st.markdown("**Persons**")
-
-            st.write(
-                persons
-                if persons
-                else "None"
-            )
-
-            st.markdown("**Locations**")
-
-            st.write(
-                locations
-                if locations
-                else "None"
-            )
-
-            st.markdown("**Phone Numbers**")
-
-            st.write(
-                phones
-                if phones
-                else "None"
-            )
-
-        with right:
-
-            st.markdown("**Vehicles**")
-
-            st.write(
-                vehicles
-                if vehicles
-                else "None"
-            )
-
-            st.markdown("**Organizations**")
-
-            st.write(
-                organizations
-                if organizations
-                else "None"
-            )
-
-
-    # =====================================================
-    # RELATIONSHIPS
-    # =====================================================
-
-    st.divider()
-
-    st.markdown(
-        '<div class="section-title">'
-        'Extracted Relationships'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="section-accent"></div>',
-        unsafe_allow_html=True
-    )
-
-
-    if relationships:
-
         for relationship in relationships:
 
+            input_fir.append([
+                relationship.get("person", ""),
+                locations[0] if locations else "",
+                phones[0] if phones else "",
+                relationship.get("related_person", ""),
+                relationship.get("relationship", "")
+            ])
+
+        # -----------------------------------------------------
+        # ML ANALYSIS
+        # -----------------------------------------------------
+
+        st.divider()
+        st.subheader("AI-Assisted Leads")
+
+        if input_fir:
+
+            with st.spinner("Analyzing historical network..."):
+
+                results = analyze_fir(input_fir)
+
+            if results:
+
+                for result in results:
+
+                    candidate = result.get("Candidate", "Unknown")
+                    score = float(result.get("Score", 0))
+
+                    col1, col2 = st.columns([4, 1])
+
+                    with col1:
+
+                        st.markdown(
+                            f"### {candidate}"
+                        )
+
+                        st.caption(
+                            "Person relevance score"
+                        )
+
+                        st.progress(
+                            min(
+                                max(
+                                    score / 100,
+                                    0.0
+                                ),
+                                1.0
+                            )
+                        )
+
+                    with col2:
+
+                        st.metric(
+                            "Score",
+                            f"{score:.2f}/100"
+                        )
+
+                    with st.expander("Analysis details"):
+
+                        detail_col1, detail_col2 = st.columns(2)
+
+                        with detail_col1:
+
+                            st.write("Shared locations")
+                            st.write("Matching phone numbers")
+                            st.write("FIR appearances")
+
+                        with detail_col2:
+
+                            st.write("Relationship connections")
+                            st.write("Network centrality")
+                            st.write("Graph distance")
+
+            else:
+
+                st.info("No relevant people were found.")
+
+        else:
+
             st.info(
-                f"{relationship['person']} "
-                f"→ {relationship['relationship']} → "
-                f"{relationship['related_person']}"
+                "Network analysis requires extracted relationships."
             )
 
-    else:
-
-        st.info(
-            "No relationships were extracted."
-        )
-
-
-    # =====================================================
-    # NETWORKX GRAPH
-    # =====================================================
-
-    st.divider()
-
-    st.markdown(
-        '<div class="section-title">'
-        'Network Intelligence'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="section-accent"></div>',
-        unsafe_allow_html=True
-    )
-
-
-    if relationships:
-
-        graph = build_network_graph(
-            relationships
-        )
-
-        graph_left, graph_right = st.columns(2)
-
-        graph_left.metric(
-            "Network Nodes",
-            graph.number_of_nodes()
-        )
-
-        graph_right.metric(
-            "Network Relationships",
-            graph.number_of_edges()
-        )
-
-        display_network_graph(
-            graph
-        )
-
-    else:
-
-        st.info(
-            "Network visualization requires "
-            "extracted relationships."
-        )
-
-
-    # =====================================================
-    # ML INPUT
-    # =====================================================
-
-    input_fir = []
-
-
-    for relationship in relationships:
-
-        input_fir.append([
-            relationship["person"],
-            locations[0] if locations else "",
-            phones[0] if phones else "",
-            relationship["related_person"],
-            relationship["relationship"]
-        ])
-
-
-    # =====================================================
-# ML ANALYSIS
-# =====================================================
-
-st.divider()
-
-st.subheader("AI-Assisted Leads")
-
-if input_fir:
-
-    with st.spinner("Analyzing historical network..."):
-
-        results = analyze_fir(input_fir)
-
-    if results:
-
-        for result in results:
-
-            candidate = result["Candidate"]
-            score = float(result["Score"])
-
-            col1, col2 = st.columns([4, 1])
-
-            with col1:
-
-                st.markdown(
-                    f"### {candidate}"
-                )
-
-                st.caption(
-                    "Person relevance score"
-                )
-
-                st.progress(
-                    min(
-                        max(
-                            score / 100,
-                            0.0
-                        ),
-                        1.0
-                    )
-                )
-
-            with col2:
-
-                st.metric(
-                    "Score",
-                    f"{score:.2f}/100"
-                )
-
-            with st.expander("Analysis details"):
-
-                detail_col1, detail_col2 = st.columns(2)
-
-                with detail_col1:
-
-                    st.write(
-                        "Shared locations"
-                    )
-
-                    st.write(
-                        "Matching phone numbers"
-                    )
-
-                    st.write(
-                        "FIR appearances"
-                    )
-
-                with detail_col2:
-
-                    st.write(
-                        "Relationship connections"
-                    )
-
-                    st.write(
-                        "Network centrality"
-                    )
-
-                    st.write(
-                        "Graph distance"
-                    )
-
-    else:
-
-        st.info(
-            "No relevant people were found."
-        )
-
-else:
-
-    st.info(
-        "Network analysis requires extracted relationships."
-    )
 # =========================================================
 # FOOTER
 # =========================================================
