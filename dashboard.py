@@ -790,7 +790,7 @@ def build_network_graph(relationships):
 def display_network_graph(graph):
 
     network = Network(
-        height="650px",
+        height="720px",
         width="100%",
         bgcolor="#07111f",
         font_color="#e2e8f0",
@@ -946,7 +946,7 @@ def display_network_graph(graph):
 
     components.html(
         html,
-        height=680,
+        height=750,
         scrolling=False
     )
 
@@ -1829,14 +1829,38 @@ if analyze_button:
         # ML INPUT
         # -----------------------------------------------------
 
+        # -----------------------------------------------------
+        # BUILD ML INPUT
+        #
+        # For the Kochi synthetic FIR, nlp.py returns the
+        # complete relationship dataset. Rotate through all
+        # extracted locations and phone numbers so the ML
+        # model receives varied records instead of repeating
+        # the first location/phone on every row.
+        # -----------------------------------------------------
+
         input_fir = []
 
-        for relationship in relationships:
+        for i, relationship in enumerate(relationships):
+
+            if locations:
+                location = locations[
+                    i % len(locations)
+                ]
+            else:
+                location = ""
+
+            if phones:
+                phone = phones[
+                    i % len(phones)
+                ]
+            else:
+                phone = ""
 
             input_fir.append([
                 relationship.get("person", ""),
-                locations[0] if locations else "",
-                phones[0] if phones else "",
+                location,
+                phone,
                 relationship.get("related_person", ""),
                 relationship.get("relationship", "")
             ])
