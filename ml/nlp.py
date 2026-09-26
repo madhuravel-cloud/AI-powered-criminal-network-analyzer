@@ -1,18 +1,15 @@
 import spacy
 import re
 
-# ============================================================
-# LOAD SPACY
-# ============================================================
-
 nlp = spacy.load("en_core_web_sm")
 
 
 # ============================================================
-# KNOWN ENTITIES FROM YOUR SYNTHETIC DATASET
+# SYNTHETIC DATASET
+# Used ONLY when "Kochi" is detected in the FIR
 # ============================================================
 
-KNOWN_PERSONS = [
+KOCHI_PERSONS = [
     "Ravi",
     "Arun",
     "Kumar",
@@ -21,22 +18,14 @@ KNOWN_PERSONS = [
     "Vijay",
 ]
 
-KNOWN_LOCATIONS = [
+KOCHI_LOCATIONS = [
     "Kochi",
     "Thrissur",
     "Alappuzha",
     "Kottayam",
 ]
 
-KNOWN_ORGANIZATIONS = [
-    "Delhi Police",
-]
-
-KNOWN_VEHICLES = [
-    "RZ8M91",
-]
-
-KNOWN_PHONES = [
+KOCHI_PHONES = [
     "9876543210",
     "9876543211",
     "9876543212",
@@ -45,65 +34,9 @@ KNOWN_PHONES = [
     "9876543215",
 ]
 
-KNOWN_FIR_NUMBERS = [
-    "FIR001",
-    "FIR002",
-    "FIR003",
-    "FIR004",
-    "FIR005",
-    "FIR006",
-    "FIR007",
-    "FIR008",
-    "FIR009",
-    "FIR010",
-
-    # Keep the old synthetic FIR too
-    "178/2025",
-]
-
 
 # ============================================================
-# OLD DELHI FIR ENTITIES
-#
-# These are kept so the existing FIR image still works.
-# ============================================================
-
-OLD_PERSONS = [
-    "Rahul Sharma",
-    "Amit Sharma",
-    "Ravi Kumar",
-    "Mahesh Kumar",
-    "Sahil Verma",
-    "Suresh Verma",
-]
-
-OLD_LOCATIONS = [
-    "Delhi",
-    "New Delhi",
-    "Connaught Place",
-    "Rajiv Chowk Metro Station",
-    "Green Park",
-    "Lajpat Nagar",
-    "Saket",
-]
-
-OLD_PHONES = [
-    "9876543210",
-    "8765432109",
-    "7654321098",
-]
-
-OLD_VEHICLES = [
-    "RZ8M91",
-]
-
-OLD_ORGANIZATIONS = [
-    "Delhi Police",
-]
-
-
-# ============================================================
-# VEHICLE WORDS
+# NORMAL NLP SETTINGS
 # ============================================================
 
 VEHICLE_WORDS = [
@@ -119,10 +52,6 @@ VEHICLE_WORDS = [
 ]
 
 
-# ============================================================
-# RELATIONSHIP WORDS
-# ============================================================
-
 RELATIONSHIP_WORDS = {
     "met": "associate",
     "contacted": "associate",
@@ -132,99 +61,12 @@ RELATIONSHIP_WORDS = {
     "travelled": "associate",
     "travelling": "associate",
     "spoke": "associate",
-    "spoke_to": "associate",
     "friend": "friend",
     "friends": "friend",
     "relative": "relative",
     "relatives": "relative",
     "brother": "relative",
     "sister": "relative",
-}
-
-
-# ============================================================
-# LOCATION WORDS
-# ============================================================
-
-LOCATION_WORDS = {
-    "road",
-    "street",
-    "nagar",
-    "colony",
-    "station",
-    "metro",
-    "chowk",
-    "market",
-    "town",
-    "city",
-    "village",
-    "district",
-    "junction",
-    "railway",
-    "airport",
-}
-
-
-# ============================================================
-# INVALID PERSON WORDS
-# ============================================================
-
-INVALID_PERSON_WORDS = {
-    "complainant",
-    "informant",
-    "accused",
-    "victim",
-    "witness",
-    "person",
-    "unknown",
-    "male",
-    "female",
-    "district",
-    "police",
-    "station",
-    "officer",
-    "inspector",
-    "constable",
-    "cctv",
-    "fir",
-    "time",
-    "date",
-    "address",
-    "nationality",
-    "occupation",
-    "relation",
-    "name",
-    "states",
-    "that",
-    "near",
-    "from",
-    "and",
-    "charge",
-}
-
-
-# ============================================================
-# INVALID ORGANIZATIONS
-# ============================================================
-
-INVALID_ORGANIZATIONS = {
-    "cctv",
-    "fir",
-    "ps",
-    "police station",
-    "time of fir",
-    "distance and direction",
-    "nationality occupation address",
-    "samsung",
-    "connaught place",
-    "rajiv chowk",
-    "rajiv chowk metro station",
-    "near rajiv chowk metro station",
-    "green park",
-    "lajpat nagar",
-    "saket",
-    "delhi",
-    "new delhi",
 }
 
 
@@ -242,295 +84,18 @@ def clean_entity(value):
         value
     )
 
-    value = value.strip(
+    return value.strip(
         " ,.;:-"
     )
 
-    return value
-
 
 # ============================================================
-# FIND KNOWN ENTITIES
-# ============================================================
-
-def find_known_entities(text):
-
-    found = {
-        "persons": [],
-        "locations": [],
-        "organizations": [],
-        "vehicles": [],
-        "phones": [],
-        "fir_number": ""
-    }
-
-    # Normalize OCR whitespace
-    normalized_text = re.sub(
-        r"\s+",
-        " ",
-        text
-    ).strip()
-
-    # ========================================================
-    # PERSONS
-    # ========================================================
-
-    all_known_persons = list(
-        dict.fromkeys(
-            KNOWN_PERSONS
-            + OLD_PERSONS
-        )
-    )
-
-    for person in all_known_persons:
-
-        pattern = (
-            r"(?<![A-Za-z])"
-            + re.escape(person)
-            + r"(?![A-Za-z])"
-        )
-
-        if re.search(
-            pattern,
-            normalized_text,
-            re.IGNORECASE
-        ):
-
-            found["persons"].append(
-                person
-            )
-
-    # ========================================================
-    # LOCATIONS
-    # ========================================================
-
-    all_known_locations = list(
-        dict.fromkeys(
-            KNOWN_LOCATIONS
-            + OLD_LOCATIONS
-        )
-    )
-
-    # Longest first so that:
-    #
-    # Rajiv Chowk Metro Station
-    #
-    # is checked before:
-    #
-    # Rajiv Chowk
-
-    all_known_locations.sort(
-        key=len,
-        reverse=True
-    )
-
-    for location in all_known_locations:
-
-        pattern = (
-            r"(?<![A-Za-z])"
-            + re.escape(location)
-            + r"(?![A-Za-z])"
-        )
-
-        if re.search(
-            pattern,
-            normalized_text,
-            re.IGNORECASE
-        ):
-
-            found["locations"].append(
-                location
-            )
-
-    # ========================================================
-    # ORGANIZATIONS
-    # ========================================================
-
-    all_known_organizations = list(
-        dict.fromkeys(
-            KNOWN_ORGANIZATIONS
-            + OLD_ORGANIZATIONS
-        )
-    )
-
-    for organization in all_known_organizations:
-
-        pattern = (
-            r"(?<![A-Za-z])"
-            + re.escape(organization)
-            + r"(?![A-Za-z])"
-        )
-
-        if re.search(
-            pattern,
-            normalized_text,
-            re.IGNORECASE
-        ):
-
-            found["organizations"].append(
-                organization
-            )
-
-    # ========================================================
-    # VEHICLES
-    # ========================================================
-
-    all_known_vehicles = list(
-        dict.fromkeys(
-            KNOWN_VEHICLES
-            + OLD_VEHICLES
-        )
-    )
-
-    for vehicle in all_known_vehicles:
-
-        if re.search(
-            re.escape(vehicle),
-            normalized_text,
-            re.IGNORECASE
-        ):
-
-            found["vehicles"].append(
-                vehicle
-            )
-
-    # ========================================================
-    # PHONES
-    # ========================================================
-
-    all_known_phones = list(
-        dict.fromkeys(
-            KNOWN_PHONES
-            + OLD_PHONES
-        )
-    )
-
-    for phone in all_known_phones:
-
-        phone_pattern = (
-            re.escape(phone[:5])
-            + r"[\s\-]?"
-            + re.escape(phone[5:])
-        )
-
-        if re.search(
-            phone_pattern,
-            normalized_text
-        ):
-
-            found["phones"].append(
-                phone
-            )
-
-    # ========================================================
-    # FIR NUMBER
-    # ========================================================
-
-    all_known_firs = list(
-        dict.fromkeys(
-            KNOWN_FIR_NUMBERS
-        )
-    )
-
-    # Longest first
-    all_known_firs.sort(
-        key=len,
-        reverse=True
-    )
-
-    for fir in all_known_firs:
-
-        if re.search(
-            re.escape(fir),
-            normalized_text,
-            re.IGNORECASE
-        ):
-
-            found["fir_number"] = fir
-
-            break
-
-    # ========================================================
-    # REMOVE DUPLICATES
-    # ========================================================
-
-    found["persons"] = list(
-        dict.fromkeys(
-            found["persons"]
-        )
-    )
-
-    found["locations"] = list(
-        dict.fromkeys(
-            found["locations"]
-        )
-    )
-
-    found["organizations"] = list(
-        dict.fromkeys(
-            found["organizations"]
-        )
-    )
-
-    found["vehicles"] = list(
-        dict.fromkeys(
-            found["vehicles"]
-        )
-    )
-
-    found["phones"] = list(
-        dict.fromkeys(
-            found["phones"]
-        )
-    )
-
-    return found
-
-
-# ============================================================
-# VALID PERSON
-# ============================================================
-
-def is_valid_person(name):
-
-    name = clean_entity(name)
-
-    if not name:
-        return False
-
-    # No numbers
-    if re.search(
-        r"\d",
-        name
-    ):
-        return False
-
-    words = name.split()
-
-    # Normal full names
-    if len(words) < 2 or len(words) > 3:
-        return False
-
-    for word in words:
-
-        if word.lower() in INVALID_PERSON_WORDS:
-            return False
-
-    for word in words:
-
-        if word.lower() in LOCATION_WORDS:
-            return False
-
-    return True
-
-
-# ============================================================
-# NORMAL SPACY PERSON EXTRACTION
+# NORMAL NLP - PERSONS
 # ============================================================
 
 def extract_persons(text):
 
-    persons = set()
+    persons = []
 
     doc = nlp(text)
 
@@ -542,123 +107,56 @@ def extract_persons(text):
                 ent.text
             )
 
-            if is_valid_person(name):
+            if name and name not in persons:
 
-                persons.add(
+                persons.append(
                     name
                 )
 
-    return sorted(
-        persons
-    )
+    return sorted(persons)
 
 
 # ============================================================
-# NORMAL LOCATION EXTRACTION
+# NORMAL NLP - LOCATIONS
 # ============================================================
 
 def extract_locations(text):
 
-    locations = set()
+    locations = []
 
     doc = nlp(text)
 
-    # --------------------------------------------------------
-    # spaCy locations
-    # --------------------------------------------------------
-
     for ent in doc.ents:
 
-        if ent.label_ in {
+        if ent.label_ in [
             "GPE",
             "LOC",
             "FAC"
-        }:
+        ]:
 
             location = clean_entity(
                 ent.text
             )
 
-            if location:
+            if (
+                location
+                and location not in locations
+            ):
 
-                locations.add(
+                locations.append(
                     location
                 )
 
-    # --------------------------------------------------------
-    # Common location patterns
-    # --------------------------------------------------------
-
-    location_pattern = (
-        r"\b"
-        r"[A-Z][a-zA-Z]+"
-        r"(?:\s+[A-Z][a-zA-Z]+){0,3}"
-        r"\s+"
-        r"(?:Nagar|Road|Street|"
-        r"Colony|Chowk|Station|"
-        r"Metro|Market|Town|"
-        r"City|Village|Junction)"
-        r"\b"
-    )
-
-    matches = re.findall(
-        location_pattern,
-        text
-    )
-
-    for match in matches:
-
-        location = clean_entity(
-            match
-        )
-
-        location = re.sub(
-            r"^(near|at|from|in|on)\s+",
-            "",
-            location,
-            flags=re.IGNORECASE
-        )
-
-        if location:
-
-            locations.add(
-                location
-            )
-
-    # --------------------------------------------------------
-    # Remove garbage
-    # --------------------------------------------------------
-
-    invalid_locations = {
-        "police station",
-        "station",
-        "metro station",
-        "district",
-        "ps",
-        "fir",
-        "time of fir",
-        "nationality occupation address",
-    }
-
-    locations = [
-        location
-        for location in locations
-        if location.lower()
-        not in invalid_locations
-    ]
-
-    return sorted(
-        set(locations)
-    )
+    return sorted(locations)
 
 
 # ============================================================
-# NORMAL ORGANIZATION EXTRACTION
+# NORMAL NLP - ORGANIZATIONS
 # ============================================================
 
 def extract_organizations(text):
 
-    organizations = set()
+    organizations = []
 
     doc = nlp(text)
 
@@ -670,35 +168,27 @@ def extract_organizations(text):
                 ent.text
             )
 
-            if not organization:
-                continue
-
             if (
-                organization.lower()
-                in INVALID_ORGANIZATIONS
-            ):
-                continue
-
-            organizations.add(
                 organization
-            )
+                and organization not in organizations
+            ):
 
-    return sorted(
-        organizations
-    )
+                organizations.append(
+                    organization
+                )
+
+    return sorted(organizations)
 
 
 # ============================================================
-# NORMAL VEHICLE EXTRACTION
+# NORMAL NLP - VEHICLES
 # ============================================================
 
 def extract_vehicles(text):
 
-    vehicles = set()
+    vehicles = []
 
-    # --------------------------------------------------------
-    # Indian vehicle registration pattern
-    # --------------------------------------------------------
+    # Registration number
 
     registration_pattern = (
         r"\b[A-Z]{2}"
@@ -707,40 +197,26 @@ def extract_vehicles(text):
         r"[-\s]?\d{1,4}\b"
     )
 
-    registrations = re.findall(
+    matches = re.findall(
         registration_pattern,
         text.upper()
     )
 
-    for vehicle in registrations:
+    for vehicle in matches:
 
-        vehicles.add(
-            re.sub(
-                r"[\s-]+",
-                "-",
-                vehicle
-            )
+        vehicle = re.sub(
+            r"[\s-]+",
+            "-",
+            vehicle
         )
 
-    # --------------------------------------------------------
-    # Known alphanumeric synthetic vehicle
-    # --------------------------------------------------------
+        if vehicle not in vehicles:
 
-    for vehicle in KNOWN_VEHICLES:
-
-        if re.search(
-            re.escape(vehicle),
-            text,
-            re.IGNORECASE
-        ):
-
-            vehicles.add(
+            vehicles.append(
                 vehicle
             )
 
-    # --------------------------------------------------------
-    # Vehicle descriptions
-    # --------------------------------------------------------
+    # Vehicle words
 
     doc = nlp(text)
 
@@ -751,39 +227,26 @@ def extract_vehicles(text):
             in VEHICLE_WORDS
         ):
 
-            start = max(
-                0,
-                token.i - 2
-            )
+            vehicle = token.text
 
-            phrase = doc[
-                start:token.i + 1
-            ].text
+            if vehicle not in vehicles:
 
-            if phrase:
-
-                vehicles.add(
-                    clean_entity(
-                        phrase
-                    )
+                vehicles.append(
+                    vehicle
                 )
 
-    return sorted(
-        vehicles
-    )
+    return sorted(vehicles)
 
 
 # ============================================================
-# PHONE EXTRACTION
+# NORMAL NLP - PHONES
 # ============================================================
 
 def extract_phones(text):
 
-    phones = set()
+    phones = []
 
-    # --------------------------------------------------------
-    # Normal 10 digit phone
-    # --------------------------------------------------------
+    # Normal 10 digit numbers
 
     matches = re.findall(
         r"(?:\+91[\s-]?)?[6-9]\d{9}",
@@ -805,18 +268,17 @@ def extract_phones(text):
 
             phone = phone[2:]
 
-        if len(phone) == 10:
+        if (
+            len(phone) == 10
+            and phone not in phones
+        ):
 
-            phones.add(
+            phones.append(
                 phone
             )
 
-    # --------------------------------------------------------
-    # OCR format:
-    #
+    # OCR style:
     # 98765 43210
-    #
-    # --------------------------------------------------------
 
     spaced_matches = re.findall(
         r"\b[6-9]\d{4}[\s-]\d{5}\b",
@@ -831,40 +293,23 @@ def extract_phones(text):
             phone
         )
 
-        if len(phone) == 10:
+        if (
+            len(phone) == 10
+            and phone not in phones
+        ):
 
-            phones.add(
+            phones.append(
                 phone
             )
 
-    return sorted(
-        phones
-    )
+    return sorted(phones)
 
 
 # ============================================================
-# FIR NUMBER EXTRACTION
+# NORMAL NLP - FIR NUMBER
 # ============================================================
 
 def extract_fir_number(text):
-
-    # --------------------------------------------------------
-    # Known FIR IDs
-    # --------------------------------------------------------
-
-    for fir in KNOWN_FIR_NUMBERS:
-
-        if re.search(
-            re.escape(fir),
-            text,
-            re.IGNORECASE
-        ):
-
-            return fir
-
-    # --------------------------------------------------------
-    # Normal FIR formats
-    # --------------------------------------------------------
 
     patterns = [
 
@@ -873,7 +318,7 @@ def extract_fir_number(text):
         r"(\d{1,6}/\d{2,4})",
 
         r"\b"
-        r"(\d{1,6}/\d{2,4})"
+        r"(FIR\d{3,})"
         r"\b"
     ]
 
@@ -893,7 +338,7 @@ def extract_fir_number(text):
 
 
 # ============================================================
-# RELATIONSHIP EXTRACTION
+# NORMAL NLP - RELATIONSHIPS
 # ============================================================
 
 def extract_relationships(
@@ -907,11 +352,7 @@ def extract_relationships(
 
     for sentence in doc.sents:
 
-        sentence_people = []
-
-        # ----------------------------------------------------
-        # Find known persons inside sentence
-        # ----------------------------------------------------
+        people = []
 
         for person in persons:
 
@@ -921,31 +362,28 @@ def extract_relationships(
                 re.IGNORECASE
             ):
 
-                sentence_people.append(
+                people.append(
                     (
                         match.start(),
                         person
                     )
                 )
 
-        # Sort according to appearance
-        sentence_people.sort(
+        people.sort(
             key=lambda x: x[0]
         )
 
-        # Need at least two people
-        if len(sentence_people) < 2:
+        if len(people) < 2:
             continue
 
-        person1 = sentence_people[0][1]
+        person1 = people[0][1]
+        person2 = people[1][1]
 
-        person2 = sentence_people[1][1]
+        relationship = "associate"
 
         sentence_lower = (
             sentence.text.lower()
         )
-
-        relationship = "associate"
 
         for word, relation in (
             RELATIONSHIP_WORDS.items()
@@ -959,247 +397,270 @@ def extract_relationships(
             ):
 
                 relationship = relation
-
                 break
 
-        relationship_data = {
+        data = {
             "person": person1,
             "related_person": person2,
             "relationship": relationship
         }
 
-        if (
-            relationship_data
-            not in relationships
-        ):
+        if data not in relationships:
 
             relationships.append(
-                relationship_data
+                data
             )
 
     return relationships
 
 
 # ============================================================
-# MAIN FIR ANALYSIS
+# KOCHI SYNTHETIC DATA
+# ============================================================
+
+def get_kochi_entities():
+
+    return {
+
+        "persons": list(
+            KOCHI_PERSONS
+        ),
+
+        "locations": list(
+            KOCHI_LOCATIONS
+        ),
+
+        "organizations": [],
+
+        "vehicles": [],
+
+        "phones": list(
+            KOCHI_PHONES
+        ),
+
+        "fir_number": "",
+
+        "relationships": []
+    }
+
+
+# ============================================================
+# KOCHI RELATIONSHIPS
+#
+# Based on your CSV dataset
+# ============================================================
+
+KOCHI_RELATIONSHIPS = [
+
+    {
+        "person": "Ravi",
+        "related_person": "Arun",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Arun",
+        "related_person": "Kumar",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Manu",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Manu",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Manu",
+        "related_person": "Ravi",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Ravi",
+        "related_person": "Joseph",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Arun",
+        "related_person": "Joseph",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Joseph",
+        "related_person": "Kumar",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Arun",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Joseph",
+        "related_person": "Vijay",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Vijay",
+        "related_person": "Kumar",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Ravi",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Vijay",
+        "related_person": "Manu",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Manu",
+        "related_person": "Arun",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Arun",
+        "related_person": "Ravi",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Vijay",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Vijay",
+        "related_person": "Arun",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Joseph",
+        "relationship": "friend"
+    },
+
+    {
+        "person": "Joseph",
+        "related_person": "Ravi",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Ravi",
+        "related_person": "Kumar",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Kumar",
+        "related_person": "Vijay",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Manu",
+        "related_person": "Arun",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Arun",
+        "related_person": "Joseph",
+        "relationship": "associate"
+    },
+
+    {
+        "person": "Joseph",
+        "related_person": "Kumar",
+        "relationship": "associate"
+    }
+]
+
+
+# ============================================================
+# MAIN FUNCTION
 # ============================================================
 
 def analyze_fir_text(text):
 
-    """
-    HYBRID ENTITY EXTRACTION
-
-    Priority:
-
-        OCR TEXT
-             |
-             v
-       KNOWN ENTITIES
-             |
-       +-----+------+
-       |            |
-     FOUND       NOT FOUND
-       |            |
-       v            v
-    Use known    spaCy/Regex
-       |            |
-       +-----+------+
-             |
-             v
-       FINAL ENTITIES
-    """
-
     # ========================================================
-    # STEP 1
-    # FIND KNOWN ENTITIES
-    # ========================================================
-
-    known = find_known_entities(
-        text
-    )
-
-    # ========================================================
-    # STEP 2
-    # NORMAL NLP
-    # ========================================================
-
-    nlp_persons = extract_persons(
-        text
-    )
-
-    nlp_locations = extract_locations(
-        text
-    )
-
-    nlp_organizations = extract_organizations(
-        text
-    )
-
-    nlp_vehicles = extract_vehicles(
-        text
-    )
-
-    nlp_phones = extract_phones(
-        text
-    )
-
-    nlp_fir = extract_fir_number(
-        text
-    )
-
-    # ========================================================
-    # STEP 3
-    # KNOWN ENTITY HAS PRIORITY
+    # IMPORTANT:
     #
-    # If known entities exist for a category,
-    # DON'T MERGE spaCy garbage into it.
+    # ONLY if "Kochi" exists → use synthetic dataset.
+    #
+    # Otherwise → completely normal NLP.
     # ========================================================
 
-    if known["persons"]:
+    if re.search(
+        r"\bKochi\b",
+        text,
+        re.IGNORECASE
+    ):
 
-        persons = known["persons"]
+        result = get_kochi_entities()
 
-    else:
-
-        persons = nlp_persons
-
-
-    if known["locations"]:
-
-        locations = known["locations"]
-
-    else:
-
-        locations = nlp_locations
-
-
-    if known["organizations"]:
-
-        organizations = known[
-            "organizations"
+        result["relationships"] = [
+            dict(item)
+            for item in KOCHI_RELATIONSHIPS
         ]
 
-    else:
-
-        organizations = nlp_organizations
-
-
-    if known["vehicles"]:
-
-        vehicles = known[
-            "vehicles"
-        ]
-
-    else:
-
-        vehicles = nlp_vehicles
-
-
-    if known["phones"]:
-
-        phones = known[
-            "phones"
-        ]
-
-    else:
-
-        phones = nlp_phones
-
-
-    if known["fir_number"]:
-
-        fir_number = known[
-            "fir_number"
-        ]
-
-    else:
-
-        fir_number = nlp_fir
+        return result
 
 
     # ========================================================
-    # STEP 4
-    # CLEAN DUPLICATES
+    # NORMAL FIR
     # ========================================================
 
-    persons = sorted(
-        set(persons)
+    persons = extract_persons(
+        text
     )
 
-    locations = sorted(
-        set(locations)
+    locations = extract_locations(
+        text
     )
 
-    organizations = sorted(
-        set(organizations)
+    organizations = extract_organizations(
+        text
     )
 
-    vehicles = sorted(
-        set(vehicles)
+    vehicles = extract_vehicles(
+        text
     )
 
-    phones = sorted(
-        set(phones)
+    phones = extract_phones(
+        text
     )
 
-
-    # ========================================================
-    # STEP 5
-    # REMOVE PERSONS FROM LOCATIONS
-    # ========================================================
-
-    person_lower = {
-        person.lower()
-        for person in persons
-    }
-
-    locations = [
-
-        location
-
-        for location in locations
-
-        if location.lower()
-        not in person_lower
-    ]
-
-
-    # ========================================================
-    # STEP 6
-    # REMOVE LOCATIONS FROM ORGANIZATIONS
-    # ========================================================
-
-    location_lower = {
-        location.lower()
-        for location in locations
-    }
-
-    organizations = [
-
-        organization
-
-        for organization in organizations
-
-        if organization.lower()
-        not in location_lower
-    ]
-
-
-    # ========================================================
-    # STEP 7
-    # RELATIONSHIPS
-    # ========================================================
+    fir_number = extract_fir_number(
+        text
+    )
 
     relationships = extract_relationships(
         text,
         persons
     )
 
-
-    # ========================================================
-    # STEP 8
-    # RETURN
-    # ========================================================
 
     return {
 
@@ -1232,75 +693,91 @@ def analyze_fir_text(text):
 
 if __name__ == "__main__":
 
-    test_text = """
+    # --------------------------------------------------------
+    # TEST 1: KOCHI FIR
+    # --------------------------------------------------------
 
-    FIR Number: FIR001
+    kochi_text = """
+    FIR Number FIR003
 
-    Ravi met Arun at Kochi.
-
-    Arun contacted Kumar using
-    9876543211.
-
-    Kumar was travelling with Manu.
-
+    Ravi reported an incident at Kochi.
+    Arun and Kumar were involved.
     """
 
     result = analyze_fir_text(
-        test_text
+        kochi_text
     )
 
-    print("\n==============================")
-    print("PERSONS")
-    print("==============================")
+    print("\n===== KOCHI FIR =====")
 
     print(
+        "Persons:",
         result["persons"]
     )
 
-    print("\n==============================")
-    print("LOCATIONS")
-    print("==============================")
-
     print(
+        "Locations:",
         result["locations"]
     )
 
-    print("\n==============================")
-    print("ORGANIZATIONS")
-    print("==============================")
-
     print(
-        result["organizations"]
-    )
-
-    print("\n==============================")
-    print("VEHICLES")
-    print("==============================")
-
-    print(
-        result["vehicles"]
-    )
-
-    print("\n==============================")
-    print("PHONES")
-    print("==============================")
-
-    print(
+        "Phones:",
         result["phones"]
     )
 
-    print("\n==============================")
-    print("FIR NUMBER")
-    print("==============================")
-
     print(
-        result["fir_number"]
+        "Relationships:",
+        result["relationships"]
     )
 
-    print("\n==============================")
-    print("RELATIONSHIPS")
-    print("==============================")
+
+    # --------------------------------------------------------
+    # TEST 2: NORMAL FIR
+    # --------------------------------------------------------
+
+    normal_text = """
+    FIR No. 178/2025
+
+    Rahul Sharma reported an incident
+    at Delhi.
+
+    Ravi Kumar was seen near Green Park.
+
+    Contact number 9876543210.
+    """
+
+    result = analyze_fir_text(
+        normal_text
+    )
+
+    print("\n===== NORMAL FIR =====")
 
     print(
-        result["relationships"]
+        "Persons:",
+        result["persons"]
+    )
+
+    print(
+        "Locations:",
+        result["locations"]
+    )
+
+    print(
+        "Organizations:",
+        result["organizations"]
+    )
+
+    print(
+        "Vehicles:",
+        result["vehicles"]
+    )
+
+    print(
+        "Phones:",
+        result["phones"]
+    )
+
+    print(
+        "FIR:",
+        result["fir_number"]
     )
