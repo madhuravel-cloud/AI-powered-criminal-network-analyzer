@@ -1,11 +1,19 @@
 import spacy
 import re
 
+# ============================================================
+# LOAD SPACY
+# ============================================================
+
 nlp = spacy.load("en_core_web_sm")
 
 
 # ============================================================
-# SYNTHETIC / KNOWN ENTITIES
+# KNOWN / SYNTHETIC ENTITIES
+#
+# These are checked FIRST.
+# If an entity of a category is found here, NLP output for
+# that category is ignored.
 # ============================================================
 
 KNOWN_PERSONS = [
@@ -109,7 +117,61 @@ LOCATION_WORDS = {
 
 
 # ============================================================
-# CLEAN
+# INVALID PERSON WORDS
+# ============================================================
+
+INVALID_PERSON_WORDS = {
+    "complainant",
+    "informant",
+    "accused",
+    "victim",
+    "witness",
+    "person",
+    "unknown",
+    "male",
+    "female",
+    "district",
+    "police",
+    "station",
+    "officer",
+    "inspector",
+    "constable",
+    "cctv",
+    "fir",
+    "time",
+    "date",
+    "address",
+    "nationality",
+    "occupation",
+    "relation",
+    "name",
+    "states",
+    "that",
+    "near",
+    "from",
+    "and",
+    "charge",
+}
+
+
+# ============================================================
+# INVALID ORGANIZATIONS
+# ============================================================
+
+INVALID_ORGANIZATIONS = {
+    "cctv",
+    "fir",
+    "ps",
+    "police station",
+    "time of fir",
+    "distance and direction",
+    "nationality occupation address",
+    "samsung",
+}
+
+
+# ============================================================
+# CLEAN ENTITY
 # ============================================================
 
 def clean_entity(value):
@@ -130,17 +192,10 @@ def clean_entity(value):
 
 
 # ============================================================
-# FIND KNOWN ENTITIES IN OCR TEXT
+# FIND KNOWN ENTITIES
 # ============================================================
 
 def find_known_entities(text):
-
-    """
-    Search the OCR text for entities from the controlled
-    synthetic dataset.
-
-    Only entities actually present in the OCR text are returned.
-    """
 
     found = {
         "persons": [],
@@ -221,17 +276,20 @@ def find_known_entities(text):
 
     for phone in KNOWN_PHONES:
 
-        # Also allow OCR spaces:
+        # Supports:
+        #
+        # 9876543210
         # 98765 43210
+        # 98765-43210
 
-        spaced = (
-            phone[:5]
-            + r"\s?"
-            + phone[5:]
+        phone_pattern = (
+            re.escape(phone[:5])
+            + r"[\s-]?"
+            + re.escape(phone[5:])
         )
 
         if re.search(
-            spaced,
+            phone_pattern,
             text
         ):
 
@@ -257,41 +315,8 @@ def find_known_entities(text):
 
 
 # ============================================================
-# PERSON VALIDATION
+# VALID PERSON
 # ============================================================
-
-INVALID_PERSON_WORDS = {
-    "complainant",
-    "informant",
-    "accused",
-    "victim",
-    "witness",
-    "person",
-    "unknown",
-    "male",
-    "female",
-    "district",
-    "police",
-    "station",
-    "officer",
-    "inspector",
-    "constable",
-    "cctv",
-    "fir",
-    "time",
-    "date",
-    "address",
-    "nationality",
-    "occupation",
-    "relation",
-    "name",
-    "states",
-    "that",
-    "near",
-    "from",
-    "and",
-}
-
 
 def is_valid_person(name):
 
@@ -300,6 +325,7 @@ def is_valid_person(name):
     if not name:
         return False
 
+    # No numbers
     if re.search(
         r"\d",
         name
@@ -308,19 +334,27 @@ def is_valid_person(name):
 
     words = name.split()
 
+    # Normal person names for this prototype
     if len(words) < 2 or len(words) > 3:
         return False
 
+    # Reject field labels / OCR garbage
     for word in words:
 
         if word.lower() in INVALID_PERSON_WORDS:
+            return False
+
+    # Reject phrases containing location words
+    for word in words:
+
+        if word.lower() in LOCATION_WORDS:
             return False
 
     return True
 
 
 # ============================================================
-# NORMAL NLP PERSON EXTRACTION
+# NORMAL SPACY PERSON EXTRACTION
 # ============================================================
 
 def extract_persons(text):
@@ -347,7 +381,7 @@ def extract_persons(text):
 
 
 # ============================================================
-# NORMAL NLP LOCATION EXTRACTION
+# NORMAL SPACY LOCATION EXTRACTION
 # ============================================================
 
 def extract_locations(text):
@@ -355,6 +389,10 @@ def extract_locations(text):
     locations = set()
 
     doc = nlp(text)
+
+    # --------------------------------------------------------
+    # spaCy locations
+    # --------------------------------------------------------
 
     for ent in doc.ents:
 
@@ -375,7 +413,7 @@ def extract_locations(text):
                 )
 
     # --------------------------------------------------------
-    # Common location phrases
+    # Common location patterns
     # --------------------------------------------------------
 
     location_pattern = (
@@ -401,17 +439,48 @@ def extract_locations(text):
             match
         )
 
+        location = re.sub(
+            r"^(near|at|from|in|on)\s+",
+            "",
+            location,
+            flags=re.IGNORECASE
+        )
+
         if location:
 
             locations.add(
                 location
             )
 
-    return sorted(locations)
+    # --------------------------------------------------------
+    # Remove obvious garbage
+    # --------------------------------------------------------
+
+    invalid_locations = {
+        "police station",
+        "station",
+        "metro station",
+        "district",
+        "ps",
+        "fir",
+        "time of fir",
+        "nationality occupation address",
+    }
+
+    locations = [
+        location
+        for location in locations
+        if location.lower()
+        not in invalid_locations
+    ]
+
+    return sorted(
+        set(locations)
+    )
 
 
 # ============================================================
-# NORMAL NLP ORGANIZATION EXTRACTION
+# NORMAL ORGANIZATION EXTRACTION
 # ============================================================
 
 def extract_organizations(text):
@@ -419,17 +488,6 @@ def extract_organizations(text):
     organizations = set()
 
     doc = nlp(text)
-
-    invalid_orgs = {
-        "cctv",
-        "fir",
-        "ps",
-        "police station",
-        "time of fir",
-        "distance and direction",
-        "nationality occupation address",
-        "samsung",
-    }
 
     for ent in doc.ents:
 
@@ -444,7 +502,15 @@ def extract_organizations(text):
 
             if (
                 organization.lower()
-                in invalid_orgs
+                in INVALID_ORGANIZATIONS
+            ):
+                continue
+
+            # Don't accept obvious location names
+            if any(
+                word.lower()
+                in LOCATION_WORDS
+                for word in organization.split()
             ):
                 continue
 
@@ -452,18 +518,23 @@ def extract_organizations(text):
                 organization
             )
 
-    return sorted(organizations)
+    return sorted(
+        organizations
+    )
 
 
 # ============================================================
-# NORMAL NLP VEHICLE EXTRACTION
+# NORMAL VEHICLE EXTRACTION
 # ============================================================
 
 def extract_vehicles(text):
 
     vehicles = set()
 
+    # --------------------------------------------------------
     # Registration number
+    # --------------------------------------------------------
+
     registration_pattern = (
         r"\b[A-Z]{2}"
         r"[-\s]?\d{1,2}"
@@ -486,7 +557,10 @@ def extract_vehicles(text):
             )
         )
 
+    # --------------------------------------------------------
     # Vehicle descriptions
+    # --------------------------------------------------------
+
     doc = nlp(text)
 
     for token in doc:
@@ -513,7 +587,9 @@ def extract_vehicles(text):
                     )
                 )
 
-    return sorted(vehicles)
+    return sorted(
+        vehicles
+    )
 
 
 # ============================================================
@@ -537,7 +613,10 @@ def extract_phones(text):
             phone
         )
 
-        if phone.startswith("91") and len(phone) == 12:
+        if (
+            phone.startswith("91")
+            and len(phone) == 12
+        ):
 
             phone = phone[2:]
 
@@ -547,20 +626,26 @@ def extract_phones(text):
                 phone
             )
 
-    return sorted(cleaned)
+    return sorted(
+        cleaned
+    )
 
 
 # ============================================================
-# NORMAL FIR EXTRACTION
+# NORMAL FIR NUMBER EXTRACTION
 # ============================================================
 
 def extract_fir_number(text):
 
     patterns = [
 
-        r"FIR\s*(?:No\.?|Number)?\s*[:\-]?\s*(\d{1,6}/\d{2,4})",
+        r"FIR\s*(?:No\.?|Number)?"
+        r"\s*[:\-]?\s*"
+        r"(\d{1,6}/\d{2,4})",
 
-        r"\b(\d{1,6}/\d{2,4})\b"
+        r"\b"
+        r"(\d{1,6}/\d{2,4})"
+        r"\b"
     ]
 
     for pattern in patterns:
@@ -595,6 +680,10 @@ def extract_relationships(
 
         sentence_people = []
 
+        # ----------------------------------------------------
+        # Find persons appearing in this sentence
+        # ----------------------------------------------------
+
         for person in persons:
 
             for match in re.finditer(
@@ -614,6 +703,7 @@ def extract_relationships(
             key=lambda x: x[0]
         )
 
+        # Need two people
         if len(sentence_people) < 2:
             continue
 
@@ -621,11 +711,11 @@ def extract_relationships(
 
         person2 = sentence_people[1][1]
 
-        relationship = "associate"
-
         sentence_lower = (
             sentence.text.lower()
         )
+
+        relationship = "associate"
 
         for word, relation in (
             RELATIONSHIP_WORDS.items()
@@ -664,25 +754,28 @@ def extract_relationships(
 
 
 # ============================================================
-# MAIN ANALYZER
+# MAIN FIR ANALYSIS
 # ============================================================
 
 def analyze_fir_text(text):
 
     """
-    HYBRID EXTRACTION
+    Hybrid extraction.
 
     Priority:
 
-    1. Check known synthetic entities
-    2. If found, use the known entity
-    3. For anything not found, use normal NLP
-    4. Merge both results
+        KNOWN ENTITY
+             ↓
+        If found → use known entity
+             ↓
+        If NOT found → use spaCy / regex
+
+    This prevents spaCy from replacing known synthetic
+    entities with incorrect classifications.
     """
 
     # ========================================================
-    # STEP 1
-    # KNOWN ENTITY CHECK
+    # 1. CHECK KNOWN ENTITIES FIRST
     # ========================================================
 
     known = find_known_entities(
@@ -690,8 +783,9 @@ def analyze_fir_text(text):
     )
 
     # ========================================================
-    # STEP 2
-    # NORMAL NLP
+    # 2. RUN NORMAL NLP
+    #
+    # We still run it because unknown entities may exist.
     # ========================================================
 
     nlp_persons = extract_persons(
@@ -719,56 +813,101 @@ def analyze_fir_text(text):
     )
 
     # ========================================================
-    # STEP 3
-    # MERGE
+    # 3. PRIORITY:
+    #
+    # KNOWN > NLP
+    #
+    # If ANY known entities exist for a category,
+    # don't allow spaCy to add garbage to that category.
     # ========================================================
 
-    persons = list(
-        dict.fromkeys(
-            known["persons"]
-            + nlp_persons
-        )
-    )
+    if known["persons"]:
 
-    locations = list(
-        dict.fromkeys(
-            known["locations"]
-            + nlp_locations
-        )
-    )
+        persons = known["persons"]
 
-    organizations = list(
-        dict.fromkeys(
-            known["organizations"]
-            + nlp_organizations
-        )
-    )
+    else:
 
-    vehicles = list(
-        dict.fromkeys(
-            known["vehicles"]
-            + nlp_vehicles
-        )
-    )
+        persons = nlp_persons
 
-    phones = list(
-        dict.fromkeys(
-            known["phones"]
-            + nlp_phones
-        )
-    )
+
+    if known["locations"]:
+
+        locations = known["locations"]
+
+    else:
+
+        locations = nlp_locations
+
+
+    if known["organizations"]:
+
+        organizations = known[
+            "organizations"
+        ]
+
+    else:
+
+        organizations = nlp_organizations
+
+
+    if known["vehicles"]:
+
+        vehicles = known[
+            "vehicles"
+        ]
+
+    else:
+
+        vehicles = nlp_vehicles
+
+
+    if known["phones"]:
+
+        phones = known["phones"]
+
+    else:
+
+        phones = nlp_phones
+
+
+    if known["fir_number"]:
+
+        fir_number = known[
+            "fir_number"
+        ]
+
+    else:
+
+        fir_number = nlp_fir
+
 
     # ========================================================
-    # FIR NUMBER
+    # 4. CLEAN DUPLICATES
     # ========================================================
 
-    fir_number = (
-        known["fir_number"]
-        or nlp_fir
+    persons = sorted(
+        set(persons)
     )
 
+    locations = sorted(
+        set(locations)
+    )
+
+    organizations = sorted(
+        set(organizations)
+    )
+
+    vehicles = sorted(
+        set(vehicles)
+    )
+
+    phones = sorted(
+        set(phones)
+    )
+
+
     # ========================================================
-    # REMOVE PERSONS FROM LOCATIONS
+    # 5. REMOVE PERSONS FROM LOCATIONS
     # ========================================================
 
     person_lower = {
@@ -786,8 +925,29 @@ def analyze_fir_text(text):
         not in person_lower
     ]
 
+
     # ========================================================
-    # RELATIONSHIPS
+    # 6. REMOVE LOCATIONS FROM ORGANIZATIONS
+    # ========================================================
+
+    location_lower = {
+        location.lower()
+        for location in locations
+    }
+
+    organizations = [
+
+        organization
+
+        for organization in organizations
+
+        if organization.lower()
+        not in location_lower
+    ]
+
+
+    # ========================================================
+    # 7. RELATIONSHIPS
     # ========================================================
 
     relationships = extract_relationships(
@@ -795,26 +955,27 @@ def analyze_fir_text(text):
         persons
     )
 
+
     # ========================================================
-    # RETURN
+    # 8. RETURN
     # ========================================================
 
     return {
 
         "persons":
-            sorted(persons),
+            persons,
 
         "locations":
-            sorted(locations),
+            locations,
 
         "organizations":
-            sorted(organizations),
+            organizations,
 
         "vehicles":
-            sorted(vehicles),
+            vehicles,
 
         "phones":
-            sorted(phones),
+            phones,
 
         "fir_number":
             fir_number,
@@ -822,3 +983,78 @@ def analyze_fir_text(text):
         "relationships":
             relationships
     }
+
+
+# ============================================================
+# TEST
+# ============================================================
+
+if __name__ == "__main__":
+
+    test_text = """
+    FIR No. 178/2025
+
+    Complainant Rahul Sharma stated that
+    Ravi Kumar was seen near Lajpat Nagar.
+
+    Mahesh Kumar and Sahil Verma were present
+    near Rajiv Chowk Metro Station.
+
+    Suresh Verma was travelling in vehicle RZ8M91.
+
+    Contact number 9876543210.
+
+    Delhi Police recorded the FIR.
+    """
+
+    result = analyze_fir_text(
+        test_text
+    )
+
+    print("\n==============================")
+    print("PERSONS")
+    print("==============================")
+
+    for item in result["persons"]:
+        print(item)
+
+    print("\n==============================")
+    print("LOCATIONS")
+    print("==============================")
+
+    for item in result["locations"]:
+        print(item)
+
+    print("\n==============================")
+    print("ORGANIZATIONS")
+    print("==============================")
+
+    for item in result["organizations"]:
+        print(item)
+
+    print("\n==============================")
+    print("VEHICLES")
+    print("==============================")
+
+    for item in result["vehicles"]:
+        print(item)
+
+    print("\n==============================")
+    print("PHONES")
+    print("==============================")
+
+    for item in result["phones"]:
+        print(item)
+
+    print("\n==============================")
+    print("FIR NUMBER")
+    print("==============================")
+
+    print(result["fir_number"])
+
+    print("\n==============================")
+    print("RELATIONSHIPS")
+    print("==============================")
+
+    for item in result["relationships"]:
+        print(item)
